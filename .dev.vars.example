@@ -1,0 +1,5 @@
+# Copy to .dev.vars for `npm run dev` (wrangler dev). Never commit .dev.vars.
+# A Neon branch made for development is ideal here, so local testing never touches event data.
+DATABASE_URL=postgresql://user:password@ep-example-123456.ap-southeast-1.aws.neon.tech/mathhack?sslmode=require
+SESSION_SECRET=replace-with-at-least-32-random-characters-secret
+FRONTEND_URL=http://localhost:5173

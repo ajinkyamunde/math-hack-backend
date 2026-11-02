@@ -1,61 +1,23 @@
 /**
- * Creates the initial host (admin) account. There is deliberately no HTTP endpoint for this.
- *
- *   HOST_INITIAL_NAME="Exam Cell" HOST_INITIAL_EMAIL=host@college.edu HOST_INITIAL_PASSWORD=... npm run create-host
- *
- * Missing values are asked for interactively (the password is not echoed). Secrets are never printed.
+ * Creates a host account (there is no sign-up route for hosts).
+ * Usage: HOST_NAME="Host Admin" HOST_EMAIL=admin@college.edu HOST_PASSWORD='...' npm run create-host
  */
-import { createInterface } from 'node:readline';
-import { Writable } from 'node:stream';
-import { z } from 'zod';
-import { connectDatabase, disconnectDatabase } from '../src/config/database.js';
-import { getEnv } from '../src/config/environment.js';
-import { createHostAccount } from '../src/services/authService.js';
-import { passwordSchema } from '../src/validation/authSchemas.js';
+import { createNeonDb } from '../src/db/client.js';
+import { createHostAccount } from '../src/services/accounts.js';
+import { databaseUrl } from './db.js';
 
-function ask(question: string, hidden = false): Promise<string> {
-  let muted = false;
-  const output = new Writable({
-    write(chunk, _encoding, callback) {
-      if (!muted) process.stdout.write(chunk);
-      callback();
-    },
-  });
-  const rl = createInterface({ input: process.stdin, output, terminal: true });
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      if (hidden) process.stdout.write('\n');
-      resolve(answer.trim());
-    });
-    muted = hidden;
-  });
-}
+const name = process.env.HOST_NAME ?? process.env.HOST_INITIAL_NAME ?? 'Host Admin';
+const email = process.env.HOST_EMAIL ?? process.env.HOST_INITIAL_EMAIL;
+const password = process.env.HOST_PASSWORD ?? process.env.HOST_INITIAL_PASSWORD;
 
-async function main(): Promise<void> {
-  getEnv(); // validates configuration before touching the database
-  const interactive = process.stdin.isTTY;
-  const name = process.env.HOST_INITIAL_NAME || (interactive ? await ask('Host display name: ') : '') || 'MathHack Host';
-  const email = process.env.HOST_INITIAL_EMAIL || (interactive ? await ask('Host email: ') : '');
-  const password = process.env.HOST_INITIAL_PASSWORD || (interactive ? await ask('Host password (hidden): ', true) : '');
-
-  const parsed = z.object({ email: z.string().email('Enter a valid email address.'), password: passwordSchema }).safeParse({ email, password });
-  if (!parsed.success) {
-    console.error(`Cannot create host: ${parsed.error.issues.map((i) => i.message).join(' ')}`);
-    process.exitCode = 1;
-    return;
-  }
-
-  await connectDatabase();
-  try {
-    const result = await createHostAccount({ name, email, password });
-    console.log(result.created ? `Host account created for ${result.email}.` : `A host account for ${result.email} already exists. Nothing changed.`);
-  } finally {
-    await disconnectDatabase();
-  }
-}
-
-main().catch((error: unknown) => {
-  console.error(`createHost failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+if (!email || !password) {
+  console.error('Set HOST_EMAIL and HOST_PASSWORD (and optionally HOST_NAME).');
   process.exit(1);
-});
+}
+if (password.length < 10) {
+  console.error('Use a host password of at least 10 characters.');
+  process.exit(1);
+}
+
+const result = await createHostAccount(createNeonDb(databaseUrl()), { name, email, password });
+console.log(result.created ? `Created host ${result.email}` : `A host with ${result.email} already exists; nothing changed.`);

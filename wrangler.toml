@@ -1,0 +1,45 @@
+name = "mathhack-api"
+main = "src/index.ts"
+compatibility_date = "2025-10-01"
+# Node compatibility is only needed by the SheetJS (xlsx) library for Buffer.
+compatibility_flags = ["nodejs_compat"]
+
+# Password hashing (Argon2id) needs more than the free plan's 10 ms of CPU per request.
+# On the Workers Paid plan the default limit is 30 s; 300 ms is plenty and caps runaway requests.
+[limits]
+cpu_ms = 300
+
+[vars]
+# Exact origin of the frontend (used for CORS and the CSRF origin check). With the Vercel /api rewrite,
+# this is the Vercel site's origin.
+FRONTEND_URL = "https://your-frontend.vercel.app"
+# Optional comma-separated extra origins, e.g. a Vercel preview URL.
+CORS_EXTRA_ORIGINS = ""
+SESSION_TTL_HOURS = "12"
+COOKIE_SAME_SITE = "lax"
+ROSTER_ENFORCED = "false"
+ALLOWED_EMAIL_DOMAINS = ""
+
+# Secrets (set with `wrangler secret put NAME`, or in .dev.vars for `wrangler dev`):
+#   DATABASE_URL   Neon connection string (postgresql://...)
+#   SESSION_SECRET at least 32 random characters. Reuse the old backend's value to keep existing sign-ins valid.
+
+# One Durable Object per competition: live SSE fan-out to students and hosts, plus the alarm that
+# finalises individual exam sessions the moment their timers run out.
+[[durable_objects.bindings]]
+name = "COMPETITION_ROOM"
+class_name = "CompetitionRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CompetitionRoom"]
+
+# Brute-force protection for sign-in. Remove this block if rate limiting bindings are unavailable on
+# your account; the API keeps working and student accounts still lock after 5 failed attempts.
+[[ratelimits]]
+name = "AUTH_LIMITER"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }
+
+[observability]
+enabled = true
